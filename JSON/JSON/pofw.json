@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","crs":{"type":"name","properties":{"name":"EPSG:4326"}},"features":[{"type":"Feature","id":1,"geometry":{"type":"Point","coordinates":[103.96243489995072,30.80970059990284]},"properties":{"OBJECTID":1,"osm_id":"5454291645","code":3400,"fclass":"buddhist","name":"东林寺"}}]}

@@ -1,0 +1,25 @@
+{
+  "name": "pidu-green-analysis",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "leaflet": "^1.9.4",
+    "next": "^16.2.6",
+    "pg": "^8.20.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-leaflet": "^5.0.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0"
+  }
+}
