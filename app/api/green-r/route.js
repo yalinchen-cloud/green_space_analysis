@@ -14,7 +14,7 @@ export async function GET(request) {
       SELECT
         gid, year, class, area_sq_m, area_hecta,
         ndvi_mean, density, source,
-        ST_AsGeoJSON(geom)::json as geometry
+        ST_AsGeoJSON(ST_Simplify(geom, 0.0001))::json as geometry
       FROM green_r
     `;
     

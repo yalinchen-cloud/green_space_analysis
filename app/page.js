@@ -25,21 +25,21 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [currentYearTotalArea, setCurrentYearTotalArea] = useState(0);
   const [selectedFeature, setSelectedFeature] = useState(null);
-const handleFeatureClick = useCallback((feature) => {
-  setSelectedFeature(feature);
-}, []);
+  const [mapLoaded, setMapLoaded] = useState(false); // 是否已主动加载地图
+
+  const handleFeatureClick = useCallback((feature) => {
+    setSelectedFeature(feature);
+  }, []);
+
   // 获取可用年份（从 green_r 和 green_v 中提取）
   const fetchAvailableYears = useCallback(async () => {
     try {
-      // 从 timeline API 获取所有年份
       const res = await fetch('/api/green/timeline');
       const data = await res.json();
       if (data.success) {
-        // 提取所有不同的年份（包含 green_v 和 green_r）
         const years = [...new Set(data.data.map(item => item.year))].sort((a,b)=>a-b);
         setAvailableYears(years);
       } else {
-        // 降级：硬编码已知年份
         setAvailableYears([2002, 2006, 2009, 2015, 2019, 2025, 2026]);
       }
     } catch (err) {
@@ -48,7 +48,7 @@ const handleFeatureClick = useCallback((feature) => {
     }
   }, []);
 
-  // 获取统计数据（用于表格和总面积卡片）
+  // 获取统计数据（用于表格和总面积卡片）—— 异步不阻塞渲染
   const fetchStatistics = useCallback(async () => {
     try {
       const res = await fetch('/api/green/statistics?source=green_r');
@@ -66,12 +66,12 @@ const handleFeatureClick = useCallback((feature) => {
       let url;
       if (source === 'green_v') {
         url = selectedYear === 'all'
-          ? '/api/green?limit=500'
-          : `/api/green?year=${selectedYear}&limit=500`;
+          ? '/api/green?limit=200'
+          : `/api/green?year=${selectedYear}&limit=200`;
       } else {
         url = selectedYear === 'all'
-          ? '/api/green-r?limit=500'
-          : `/api/green-r?year=${selectedYear}&limit=500`;
+          ? '/api/green-r?limit=200'
+          : `/api/green-r?year=${selectedYear}&limit=200`;
       }
       const res = await fetch(url);
       const data = await res.json();
@@ -86,7 +86,6 @@ const handleFeatureClick = useCallback((feature) => {
               0
             );
           } else {
-            // green_v 的 shape_area 从度平方转换为公顷 (1度² ≈ 12390 公顷)
             total = data.data.features.reduce(
               (sum, f) => sum + (f.properties.shape_area || 0) * 12390,
               0
@@ -103,6 +102,12 @@ const handleFeatureClick = useCallback((feature) => {
       setLoading(false);
     }
   }, [source, selectedYear]);
+
+  // 手动触发加载地图
+  const handleLoadMap = () => {
+    setMapLoaded(true);
+    fetchGreenData();
+  };
 
   // 搜索处理
   const handleSearch = async () => {
@@ -126,32 +131,35 @@ const handleFeatureClick = useCallback((feature) => {
     return text.replace(regex, '<mark class="bg-yellow-300">$1</mark>');
   };
 
-  // 初始化：获取年份列表和统计数据
+  // 初始化：获取年份列表和统计数据（不阻塞页面）
   useEffect(() => {
     fetchAvailableYears();
     fetchStatistics();
   }, [fetchAvailableYears, fetchStatistics]);
 
-  // 当数据源或年份变化时，重新加载地图数据
+  // 当地图已加载后，数据源或年份变化时重新加载地图数据
   useEffect(() => {
-    fetchGreenData();
-  }, [fetchGreenData]);
+    if (mapLoaded) {
+      fetchGreenData();
+    }
+  }, [mapLoaded, source, selectedYear, fetchGreenData]);
+
   // 当数据源或年份变化时，清空搜索结果
-useEffect(() => {
-  setSearchResults([]);
-  setKeyword('');
-}, [source, selectedYear]);
+  useEffect(() => {
+    setSearchResults([]);
+    setKeyword('');
+  }, [source, selectedYear]);
 
   // 从统计数据中提取按年份的表格数据（使用 green_r 的数据）
   const yearlyTableData = statistics?.green_r?.yearly_data || [];
 
-  // 总面积卡片显示文本
-  const totalAreaText =
-    currentYearTotalArea > 0
-      ? `${currentYearTotalArea.toFixed(2)} 公顷`
-      : loading
-      ? '加载中...'
-      : '无数据';
+  // 总面积卡片显示文本（地图未加载时提示用户）
+  const totalAreaText = (() => {
+    if (!mapLoaded) return '点击加载地图';
+    if (currentYearTotalArea > 0) return `${currentYearTotalArea.toFixed(2)} 公顷`;
+    if (loading) return '加载中...';
+    return '无数据';
+  })();
 
   // 年份选择下拉框的选项
   const yearOptions = [
@@ -179,9 +187,7 @@ useEffect(() => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* 数据源选择 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                数据源
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">数据源</label>
               <select
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
@@ -194,9 +200,7 @@ useEffect(() => {
 
             {/* 年份选择 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                年份筛选
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">年份筛选</label>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(e.target.value)}
@@ -208,9 +212,7 @@ useEffect(() => {
 
             {/* 搜索框 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                地名搜索
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">地名搜索</label>
               <div className="flex">
                 <input
                   type="text"
@@ -235,9 +237,7 @@ useEffect(() => {
                 {source === 'green_r' ? '遥感绿地总面积' : '矢量绿地总面积'}
                 {selectedYear !== 'all' && ` (${selectedYear}年)`}
               </div>
-              <div className="text-2xl font-bold text-green-700">
-                {totalAreaText}
-              </div>
+              <div className="text-2xl font-bold text-green-700">{totalAreaText}</div>
             </div>
           </div>
         </div>
@@ -246,12 +246,28 @@ useEffect(() => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 地图容器 */}
           <div className="lg:col-span-2 bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="h-96">
-              <MapComponent
-                data={greenData}
-                searchResults={searchResults}
-                onFeatureClick={handleFeatureClick}
-              />
+            <div className="h-96 relative">
+              {!mapLoaded ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-50">
+                  <p className="text-gray-500 mb-4">地图数据未加载</p>
+                  <button
+                    onClick={handleLoadMap}
+                    className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition"
+                  >
+                    加载地图
+                  </button>
+                </div>
+              ) : loading && !greenData ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gray-50">
+                  <p className="text-gray-500">加载地图数据中...</p>
+                </div>
+              ) : (
+                <MapComponent
+                  data={greenData}
+                  searchResults={searchResults}
+                  onFeatureClick={handleFeatureClick}
+                />
+              )}
             </div>
           </div>
 
@@ -280,14 +296,10 @@ useEffect(() => {
                 </div>
               ))}
               {searchResults.length === 0 && keyword && (
-                <div className="text-gray-500 text-center py-4">
-                  未找到“{keyword}”相关结果
-                </div>
+                <div className="text-gray-500 text-center py-4">未找到“{keyword}”相关结果</div>
               )}
               {searchResults.length === 0 && !keyword && (
-                <div className="text-gray-400 text-center py-4">
-                  输入地名开始搜索
-                </div>
+                <div className="text-gray-400 text-center py-4">输入地名开始搜索</div>
               )}
             </div>
           </div>
@@ -319,9 +331,7 @@ useEffect(() => {
                 ))}
                 {yearlyTableData.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="text-center py-4 text-gray-500">
-                      暂无数据
-                    </td>
+                    <td colSpan="5" className="text-center py-4 text-gray-500">暂无数据</td>
                   </tr>
                 )}
               </tbody>
